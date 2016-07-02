@@ -18,8 +18,8 @@ int main(int argc, char** argv) {
     double Re = 10.0; // レイノルズ数
     double U0 = 1.0;  // 初期速度
     double delta_t = 0.01;
-    double x_width = 0.0;
-    double y_width = 0.0;
+    double x_width = 0.2;
+    double y_width = 0.2;
     int max_count = 3;
     double **u;
     double **v;
@@ -50,28 +50,28 @@ int main(int argc, char** argv) {
     delta_t = atof(argv[4]);
     max_count = atoi(argv[5]);
 
-    u = alloc_dmatrix(n+2, n+2);
-    v = alloc_dmatrix(n+2, n+2);
-    p = alloc_dmatrix(n+2, n+2);
-    u_p = alloc_dmatrix(n+2, n+2);
-    v_p = alloc_dmatrix(n+2, n+2);
-    u_next = alloc_dmatrix(n+2, n+2);
-    v_next = alloc_dmatrix(n+2, n+2);
-    h = 1.0 / ((double)n + 1.0);
-    int m = n * n;
+    u = alloc_dmatrix(n+1, n+1);
+    v = alloc_dmatrix(n+1, n+1);
+    p = alloc_dmatrix(n+1, n+1);
+    u_p = alloc_dmatrix(n+1, n+1);
+    v_p = alloc_dmatrix(n+1, n+1);
+    u_next = alloc_dmatrix(n+1, n+1);
+    v_next = alloc_dmatrix(n+1, n+1);
+    h = 1.0 / ((double)n);
+    int m = (n+1) * (n+1);
     int x, y;
     a = alloc_dmatrix(m, m);
-    phi = alloc_dmatrix(n+2, n+2);
+    phi = alloc_dmatrix(n+1, n+1);
     b = alloc_dvector(m);
     ipiv = alloc_ivector(m);
 
     // init
-    for (i = 0; i < n+2; ++i) {
-        for (j = 0; j < n+2; ++j) {
+    for (i = 0; i <= n; ++i) {
+        for (j = 0; j <= n; ++j) {
             v[i][j] = 0;
 			v_p[i][j] = 0;
 
-            if (i == 1 || i == n || j == 1 || j == n ) {
+            if (i == 0 || i == n || j == 0 || j == n ) {
 				u[i][j] = U0;
 				u_p[i][j] = U0;
             } else if (0.5 - x_width / 2.0 <= i * h && i * h <= 0.5 + x_width / 2.0 && 
@@ -91,15 +91,24 @@ int main(int argc, char** argv) {
 
     for (k = 0; k < m; ++k) {
         // a : 係数行列
-        x = (k % n + 1);
-        y = (k / n + 1);
+        x = (k % (n+1) );
+        y = (k / (n+1) );
 
-        a[k][k] = -4.0;
-        
-        if (x != 1) a[k][k - 1] = 1.0;
-        if (x != n) a[k][k + 1] = 1.0;
-        if (y != 1) a[k][k - n] = 1.0;
-        if (y != n) a[k][k + n] = 1.0;
+		if (x == 0 || x == n || y == 0 || y == n) {
+			a[k][k] = 1.0;
+		} else {
+        	a[k][k] = -4.0;
+        	a[k][k - 1] = 1.0;
+			a[k][k + 1] = 1.0;
+			a[k][k - (n+1)] = 1.0;
+			a[k][k + (n+1)] = 1.0;
+			/*
+        	if (x != 0) a[k][k - 1] = 1.0;
+        	if (x != n) a[k][k + 1] = 1.0;
+        	if (y != 0) a[k][k - (n+1)] = 1.0;
+        	if (y != n) a[k][k + (n+1)] = 1.0;
+			*/
+		}
     }
 
     /* perform LU decomposition */
@@ -114,10 +123,11 @@ int main(int argc, char** argv) {
     count = 0;
     while (count < max_count) {
         // 中間流速u_p,v_p
-        for (i = 1; i <=n; ++i) {
-            for (j = 1; j <= n; ++j) {
-                if (i == 1 || i == n || j == 1 || j == n ) {
+        for (i = 0; i <=n; ++i) {
+            for (j = 0; j <= n; ++j) {
+                if (i == 0 || i == n || j == 0 || j == n ) {
                     u_p[i][j] = U0;
+					v_p[i][j] = 0.0;
                     continue;
                 } else if (0.5 - x_width / 2.0 <= i * h && i * h <= 0.5 + x_width / 2.0 && 
                            0.5 - y_width / 2.0 <= j * h && j * h <= 0.5 + y_width / 2.0 ) {
@@ -126,15 +136,15 @@ int main(int argc, char** argv) {
                     continue;
                 }
 
-                u_p[i][j] = (p[i+1][j] - p[i-1][j]) / (2*h)
+                u_p[i][j] = -(p[i+1][j] - p[i-1][j]) / (2*h)
                             + u[i][j] * (- (u[i+1][j] - u[i-1][j]) / (2*h) - 4 / (Re * h * h))
                             + v[i][j] * (- (u[i][j+1] - u[i][j-1]) / (2*h))
                             + (u[i+1][j] + u[i-1][j] + u[i][j+1] + u[i][j-1]) / (Re * h * h);
                 u_p[i][j] = delta_t * u_p[i][j] + u[i][j];
                 
-                v_p[i][j] = (p[i][j+1] - p[i][j-1]) / (2*h)  
-                            + v[i][j] * (- (v[i][j+1] - v[i][j+1]) / (2*h) - 4 / (Re * h * h))
-                            + u[i][j] * (- (u[i+1][j] - u[i-1][j]) / (2*h))
+                v_p[i][j] = -(p[i][j+1] - p[i][j-1]) / (2*h)  
+                            + v[i][j] * (- (v[i][j+1] - v[i][j-1]) / (2*h) - 4 / (Re * h * h))
+                            + u[i][j] * (- (v[i+1][j] - v[i-1][j]) / (2*h))
                             + (v[i+1][j] + v[i-1][j] + v[i][j+1] + v[i][j-1]) / (Re * h * h);
                 v_p[i][j] = delta_t * v_p[i][j] + v[i][j];
             }
@@ -142,10 +152,14 @@ int main(int argc, char** argv) {
 
         // phi
         for (k = 0; k < m; ++k) {
-            x = (k % n + 1);
-            y = (k / n + 1);
-            b[k] = u_p[x+1][y] - u_p[x-1][y] + v_p[x][y+1] - v_p[x][y-1];
-            b[k] = b[k] * h / delta_t / 2.0;
+            x = (k % (n+1) );
+            y = (k / (n+1) );
+			if (x == 0 || x == n || y == 0 || y == n){
+				b[k] = 0.0;
+			} else {
+            	b[k] = u_p[x+1][y] - u_p[x-1][y] + v_p[x][y+1] - v_p[x][y-1];
+            	b[k] = (1.0) * b[k] * h / delta_t / 2.0;
+			}
         }
         /* solve equations */
         dgetrs_(&trans, &m, &nrhs, &a[0][0], &m, &ipiv[0], &b[0], &m, &info);
@@ -154,14 +168,14 @@ int main(int argc, char** argv) {
             exit(1);
         }
         for (k = 0; k < m; ++k) {
-            x = (k % n + 1);
-            y = (k / n + 1);
+            x = (k % (n + 1));
+            y = (k / (n + 1));
             phi[x][y] = b[k];
         }
 
-        for (i = 1; i <=n; ++i) {
-            for (j = 1; j <= n; ++j) {
-                if (i == 1 || i == n || j == 1 || j == n ) {
+        for (i = 1; i <n; ++i) {
+            for (j = 1; j < n; ++j) {
+                if (i == 0 || i == n || j == 0 || j == n ) {
                     u[i][j] = U0;
                     continue;
                 } else if (0.5 - x_width / 2.0 <= i * h && i * h <= 0.5 + x_width / 2.0 && 
@@ -183,8 +197,8 @@ int main(int argc, char** argv) {
     }
 
     printf("# x y u v \n");
-    for (i = 1; i <= n; ++i) {
-        for (j = 1; j <= n; ++j) {
+    for (i = 0; i <= n; ++i) {
+        for (j = 0; j <= n; ++j) {
             printf("%lf %lf %lf %lf\n", i * h, j * h, u[i][j], v[i][j]);
         }
         printf("\n");
