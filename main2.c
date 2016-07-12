@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
             v[i][j] = 0;
 			v_p[i][j] = 0;
 
-            if (i == 0 || i == n || j == 0 || j == n ) {
+            if (i == 0 || i == n || j == 0 || j == n || j * h <= 0.25 || j * h >= 0.75 || i * h < 0.2) {
 				u[i][j] = U0;
 				u_p[i][j] = U0;
             } else if (0.5 - x_width / 2.0 <= i * h && i * h <= 0.5 + x_width / 2.0 && 
